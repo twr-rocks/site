@@ -3,6 +3,7 @@
 <head>
     <base href="${baseUrl}">
     <link rel="icon" type="image/x-icon" href="${baseUrl}logo-transparent.png">
+    <link rel="stylesheet" href="${baseUrl}style.css">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <script src="${baseUrl}abstratiumweb/abstratium.js" type="text/javascript"></script>
@@ -89,7 +90,10 @@ This allows you to build scalable concurrent self-healing systems while still fu
     The following diagram should help to understand the steps involved.
 </p>
     
-    <img src="twr-simple.svg" />
+<p class="center">
+    <img src="twr-simple.svg" class="center" />
+</p>
+
 <p>
     1) Your application saves data to the database. In the same transaction used for saving its own business data,
        it also saves any tasks that still need to be done, e.g. making a call to a downstream service using REST,
