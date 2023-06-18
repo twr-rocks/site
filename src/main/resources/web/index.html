@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <base href="${baseUrl}">
+    <link rel="icon" type="image/x-icon" href="${baseUrl}logo-transparent.png">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <script src="${baseUrl}abstratiumweb/abstratium.js" type="text/javascript"></script>
+    <style>
+        input, div { padding: 10px; }
+    </style>
+</head>
+<body>
+<table width="100%">
+    <tr>
+        <td align="center">
+            <img src="logo-transparent.png" width="200" alt="TWR - The Waiting room">
+        </td>
+    </tr>
+</table>
+<h1>The Waiting Room</h1>
+<small>Copyright © 2023 Ant Kutschera</small>
+
+<p>
+A software product designed to enhance the consumption of Apache Kafka topics,
+providing guaranteed ordering at a key level, rather than just the partition.
+This allows consumers to retry in the case of failures, without either losing the order (e.g. by sending to
+a dead letter topic),
+or blocking other records in the partition with different keys.
+Whether or not to guarantee ordering can be set per record.
+It additionally support delayed delivery, backoff during retries, time-to-live per record
+This allows you to build scalable concurrent self-healing systems while still fulfilling ordering requirements.
+</p>
+
+<h2>Resources</h2>
+<p>
+    Open Source Code, licensed under Apache 2.0, is available at <a href="https://github.com/twr-rocks" target="_blank">https://github.com/twr-rocks</a>
+</p>
+<p>
+    Maven artifacts, Docker images, etc. coming soon.
+</p>
+<p>
+    Documentation coming soon...
+</p>
+
+<h2>Concept</h2>
+<p>
+    Distributed software architectures allow improvements in availability and scalability
+    but suffer from network partitions 
+    (<a href='https://www.maxant.ch/2021/05/24/1621878436189/' target="_blank">Eleven Patterns, Problems & Solutions related to Microservices and in particular Distributed Architectures</a>).
+    A pattern often applied to solve global data consistency requirements, by way of introducing
+    eventual consistency, is the transactional outbox pattern. That pattern has been implemented
+    in many libraries and software products, as well as in the cloud. Most frequently, the outbox
+    is used to send (domain) events to downstream services. However, the pattern can also be used
+    to effectively make a callback to the source component which then executes the task from the 
+    outbox, like making a call to a downstream REST based service, sending an email, or integrating
+    anything else that does not have a message based API<sup>*</sup>.
+</p><p>
+    Regardless of how it is used, little is written about consuming from the outbox and 
+    what happens when failures during the processing of the messages, occur. Strongly
+    related to those failures is the ordering of the messages. For example an error while processing
+    the first task in the outbox can lead to a second task overtaking the first one. Sometimes,
+    that is not good, and complicates understanding what happened.
+</p><p>
+    When working with a monolithic architecture, reasoning about problems in the software is often
+    greatly simplfied in comparison to those problems described above for distributed architectures.
+    This is because the processes are often serialised, especially when considering just a single instance of an
+    "aggregate", like an insurance case, a sales case / shopping cart, etc.
+    While not always advantageous, required or even necessary, such serialisation,
+    can simplify the problem at hand.
+</p><p>
+    This software product acts as middleware, sitting between the transactional outbox
+    and your software which asynchronously processes the tasks in the outbox after they
+    have been committed there together with business data. It takes care of serialising
+    the processing of tasks *for any given business key (aka `aggregateId`)*, allowing
+    the processing to be attempted multiple times if required (retries), effectively holding
+    back other tasks which need to be processed later, in order. Note that not all tasks
+    must be blocked (it is configurable at the task level).
+</p><p>
+    <sup>*</sup> It is also possible to use things like 
+    (<a href='https://kafka.apache.org/documentation/#connect' target="_blank">Kafka Connect</a>).
+    to consume messages from a topic and make calls to REST-based services, send emails, etc. Sometimes it is preferred to 
+    keep such logic in the main application, perhaps because after succeessfully calling a REST-based service, 
+    a subsequent step needs to be carried out, or state in the database needs to be updated, e.g. for auditing purposes.
+</p>
+<h2>How it works</h2>    
+    
+<p>
+    The following diagram should help to understand the steps involved.
+</p>
+    
+    <img src="twr-simple.svg" />
+<p>
+    1) Your application saves data to the database. In the same transaction used for saving its own business data,
+       it also saves any tasks that still need to be done, e.g. making a call to a downstream service using REST,
+       or sending an email, or mapping some state before sending it out as a domain event<sup>*</sup>. Indeed, any resource outside
+       of your application that needs to be bound into the transaction should be included by adding a task to the
+       outbox.
+       <sup>*</sup> Sometimes it is preferred to have mapping logic in the main application rather than in Debezium or Kafka Connect.
+</p><p>
+
+    2) Debezium (or your favourite CDC equivalent) uses change data capture (CDC) mechanisms like tailing the database
+       transaction log, to consume the changes to the database and create an internal model of them.
+    </p><p>
+    3) Once the transaction is committed, Debezium puts the outbox tasks into a "raw" Kafka topic. Note that if you
+       are simply publishing domain events, you are free to use something like 
+       <a href='https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html' target="_blank">Debezium outbox event router</a>.
+       TWR can be useful on the other side, when consuming those events, where ordering is necessary but failures could occur
+       while processing them - see 4b below.
+       It is also possible to fill the raw topic using periodic polling (which you must implement as TWR does not connect
+       to databases), so long as the messages are sorted first. TWR also deduplicates messages from the raw topic.
+    </p><p>
+    4) TWR reads those raw messages and converts them into a standard model that it uses. This involves investigating
+       the current and previous state, as well as understanding if the data was inserted, updated or deleted.
+       As an alternative, TWR can be used to consume externally produced events and map them into it's standard model
+       (think "inbox" rather than outbox), so that if your application fails to execute a task the first time it consumes
+       such a message, it will be triggered again, to attempt it later, allowing messages for other `aggregateId`s to
+       continue to be processed, while only blocking other messages for the same `aggregateId`, so that order is maintained, 
+       if that is required. Another application of TWR in this sense is when joining messages of several topics, but when a different
+       part of the final model has not yet arrived, and you want to wait for it, so that e.g. you can use a foreign key constraint in your
+       database model.
+    </p><p>
+    5) TWR publishes the tasks to an output topic. It ensures that where you require an ordering guarantee, tasks
+       are only published if all preceding ones have been successfully completed. It can also delay tasks, if
+       you require that. It can remove tasks if a time-to-live which is set by you has been exceeded. Importantly,
+       it partitions by `aggregateId`, so other data having other keys is not blocked should a certain message
+       fail and need to be retried (as is the norm when using plain Kafka). Thanks to that, tasks can be retried with
+       an exponential backoff, or halted entirely until an administrator intervenes, without interupting the processing
+       of other business aggregates. All of these mechanisms lead to a self-healing system, but also one which is simpler
+       to understand, because while it is asynchronous, concurrent and scalable, you can limit the concurrency for a 
+       single aggregate. Note that while normally we strive for concurrency in order to scale, we want to reduce the 
+       chaos that that can bring with it when business processes running on single aggregates run in parallel.
+    </p><p>
+    6) Your application consumes the messages with the help of a TWR library, and executes the business logic 
+       associated aggregate type using the aggregate as the input. If the execution is successful, the outbox table is
+       updated and the completed timestamp is set, which signals TWR to remove that task from its model (via flows 1-4),
+       and output the next task for that `aggregateId` (via flows 5 & 6). If the execution fails, you can set the 
+       time to wait until, on the task in the outbox, which TWR uses to wait for, allowing for exponential backoff, 
+       which can be useful in allowing downstream services to recover if they are struggling under load.
+</p>
+
+<!--
+<input type="text" onkeyup="processChange()" placeholder="Enter your name...">
+<br>
+<div id="result"></div>
+-->
+
+<script defer>
+ab.onLoad(function() { // run this function after all prerequisites are loaded, like abstratium.js and its dependencies
+
+    $('input').focus();
+
+    async function loadResult() {
+        let inputValue = document.querySelector("input").value.trim();      // get the text typed by the user, without leading / trailing spaces
+        if(inputValue.length > 0) {                                         // if the user typed something...
+            let response = await fetch("example/hello?name=" + inputValue); // ...send the input to your program
+            response = await response.text();                               // convert the result into text
+            let textToDisplay = "Your program said: " + response;           // enrich the result
+            document.getElementById("result").innerHTML = textToDisplay;    // put the result onto the page, in the div above
+        }
+    }
+
+    window.processChange = _.debounce(loadResult, 300);  // "debounce" the keystrokes, so that it waits 300 milliseconds
+                                                         // before calling your program, in case the user keeps typing.
+                                                         // the underscore is called "lodash" and comes from the lodash
+                                                         // library loaded using the abstratium.js script loaded in the head
+});
+</script>
+</body>
+</html>

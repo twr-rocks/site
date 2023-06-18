@@ -1,0 +1,10 @@
+properties:
+  salutation: "Hi"
+
+
+infrastructure:
+
+  web-mappings:
+    - host: twr.rocks
+      verb: create
+
