@@ -31,6 +31,11 @@ p {
     opacity: 0.95;
 }
 
-.myElement.is-pinned {
-  color: red;
+.link-to-top {
+  width: 100%;
+  text-align: right;
+  position: fixed;
+  bottom: 50%;
+  right: 1px;
+  z-index: 2000; /* otherwise gets hidden behind bootstrap info boxes */
 }
