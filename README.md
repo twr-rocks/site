@@ -7,11 +7,12 @@ This repo contains the contents of https://twr.rocks
 https://getbootstrap.com/docs/5.3/getting-started/download/
 
 - added `bootstrap.min.css`
+- added `bootstrap.min.js`
 
 # Layout
 
-using 
-
+using bootstrap columns. responsive. always keep at least one either side of content to make it laid out like a 
+nicely readable column.
 
 # Fontawsome
 

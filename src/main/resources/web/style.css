@@ -1,13 +1,4 @@
 body {
-/*
-  background-color: rgb(255, 255, 255);
-  margin-left: auto;
-  margin-right: auto;
-  text-align: center;
-  padding: 10px;
-  max-width: 600px;
-*/
-
   background-image: linear-gradient(45deg, transparent 20%, rgb(233, 237, 255) 25%, transparent 25%),
   linear-gradient(-45deg, transparent 20%, rgb(233, 237, 255) 25%, transparent 25%),
   linear-gradient(-45deg, transparent 75%, rgb(233, 237, 255) 80%, transparent 0),
@@ -19,14 +10,27 @@ p {
   text-align: justify;
 }
 
-.center {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-  width: 100% !important;
-}
-
 .footer {
     text-align: center;
     font-size: 14px;
+}
+
+.stick-to-top {
+  position: -webkit-sticky; /* Safari */
+  position: sticky;
+  top: -1px; /* super important since we have a javascript intersection listener used to toggle the little logo */
+  z-index: 2000; /* otherwise gets hidden behind bootstrap info boxes */
+}
+
+#sticky-logo {
+    display: none; /* initial display is none, and when the tabs go sticky, we show it using js */
+}
+
+.nav-tab-with-background {
+    background-color: white;
+    opacity: 0.95;
+}
+
+.myElement.is-pinned {
+  color: red;
 }
