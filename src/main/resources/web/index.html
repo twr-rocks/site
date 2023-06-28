@@ -21,11 +21,11 @@
         <div class="col-10 col-lg-8 col-xl-6">
             <img src="logo-transparent.png" alt="TWR - The Waiting room">
             <h1>The Waiting Room</h1>
-            <small>Copyright © 2023 Ant Kutschera</small>
+            <small>Copyright © 2023 Ant Kutschera - see bottom of page for details</small>
 
             <p>
             A software product designed to enhance the consumption of Apache Kafka topics,
-            providing guaranteed ordering at a key level, rather than just the partition.
+            providing guaranteed ordering at the key level, rather than just the partition.
             This allows consumers to retry in the case of failures, without either losing the order (e.g. by sending to
             a dead letter topic),
             or blocking other records in the partition with different keys.
@@ -34,7 +34,7 @@
             This allows you to build scalable concurrent self-healing systems, while still fulfilling ordering requirements as necessary.
             </p>
 
-            <div class="alert alert-warning" role="alert">
+            <div class="alert alert-warning justify" role="alert">
                 <i class="fa-solid fa-person-digging"></i>
                 This site is a work in progress and still under construction!
             </div>
@@ -46,6 +46,9 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="resources-tab" data-bs-toggle="tab" data-bs-target="#resources" type="button" role="tab" aria-controls="resources" aria-selected="false" onclick="scrollToElement('#resources')">Resources</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="features-tab" data-bs-toggle="tab" type="button" role="tab" aria-controls="features" aria-selected="false" onclick="scrollToElement('#features')">Features</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="howitworks-tab" data-bs-toggle="tab" type="button" role="tab" aria-controls="howitworks" aria-selected="false" onclick="scrollToElement('#howitworks')">How It Works</button>
@@ -65,46 +68,67 @@
             <h2>Concept <a href="#concept"><i class="fas fa-link" style="font-size: 50%;" onclick="copyLinkToClipboard('concept')"></i></a></h2>
             <p>
                 Distributed software architectures allow improvements in availability and scalability
-                but suffer from network partitions and that leads to a whole list of associated problem,
-                e.g. <a href='https://www.maxant.ch/2021/05/24/1621878436189/' target="_blank">Eleven Patterns, Problems & Solutions related to Microservices and in particular Distributed Architectures</a>.
-                A pattern often applied to solve global data consistency requirements, by way of introducing
-                eventual consistency, is the transactional outbox pattern. That pattern has been implemented
-                in many libraries and software products, as well as in the cloud. Most frequently, the outbox
-                is used to send (domain) events to downstream services. However, the pattern can also be used
-                to effectively make a callback to the source component which then executes the task from the
-                outbox, like making a call to a downstream REST based service, sending an email, or integrating
-                anything else that does not have a message based API<sup>*</sup>.
-            </p><p>
-                Regardless of how it is used, little is written about consuming from the outbox and
-                what happens when failures during the processing of the messages, occur. Strongly
-                related to those failures is the ordering of the messages. For example an error while processing
-                the first task in the outbox can lead to a second task overtaking the first one. Sometimes,
-                that is not good, and complicates understanding what happened.
-            </p><p>
-                When working with a monolithic architecture, reasoning about problems in the software is often
-                greatly simplfied in comparison to those problems described above for distributed architectures.
-                This is because the processes are often serialised, especially when considering just a single instance of an
-                "aggregate", like an insurance case, a sales case / shopping cart, etc.
-                While not always advantageous, required or even necessary, such serialisation,
-                can simplify the problem at hand.
-            </p><p>
-                This software product acts as middleware, sitting between the transactional outbox
-                and your software which asynchronously processes the tasks in the outbox after they
-                have been committed there together with business data. It takes care of serialising
-                the processing of tasks <i>for any given business key (aka <code>aggregateId</code>)</i>, allowing
-                the processing to be attempted multiple times if required (retries), effectively holding
-                back other tasks which need to be processed later, in order. Note that not all tasks
-                must be blocked (it is configurable at the task level).
+                but suffer from network partitions and that leads to a whole list of associated problem, e.g.
+                <a href='https://www.maxant.ch/2021/05/24/1621878436189/' target="_blank">Eleven Patterns, Problems & Solutions related to Microservices and in particular Distributed Architectures</a>.
+                A pattern often applied to solve global data consistency requirements, is the
+                <a href='https://microservices.io/patterns/data/transactional-outbox.html' target="_blank">transactional outbox pattern</a>
+                where instead of sending events outside of the transaction used to commit data in a source component,
+                an outbox table is committed to, within the same
+                <a href="https://en.wikipedia.org/wiki/ACID" target="_blank">ACID transaction</a>.
+                The contents of that outbox table are processed asynchronously, resulting in
+                <a href="https://en.wikipedia.org/wiki/Eventual_consistency" target="_blank">eventual consistency</a>.
+                That pattern has been implemented in many libraries and software products, as well as in the cloud.
+                Most frequently, the outbox is used to send (domain) events to downstream services. However,
+                it is also possible to make the source component respond to the event itself, execute some logic,
+                like making a call to a downstream REST based service, sending an email, or integrating
+                anything else that does not have a event based API.
             </p>
-            <div class="alert alert-secondary" role="alert">
+            <div class="alert alert-secondary justify" role="alert">
                 <!-- style="color: red; font-size:50px;" -->
                 <i class="fa fa-info-circle" aria-hidden="true"></i>
 
-                <sup>*</sup> It is also possible to use things like
+                It is also possible to use things like
                 <a href='https://kafka.apache.org/documentation/#connect' target="_blank">Kafka Connect</a>
-                to consume messages from a topic and make calls to REST-based services, send emails, etc. Sometimes it is preferred to
-                keep such logic in the main application, perhaps because after succeessfully calling a REST-based service,
+                to consume events from a topic and make calls to REST-based services, send emails, etc. Sometimes it is preferred to
+                keep such logic in the main application, perhaps because after successfully calling a REST-based service,
                 a subsequent step needs to be carried out, or state in the database needs to be updated, e.g. for auditing purposes.
+            </div>
+            <p>
+                Regardless of how it is used, little is written about consuming from the outbox and
+                <i>what happens when failures during the processing of the events, occur</i>. Strongly
+                related to those failures is the ordering of the events. For example an error while processing
+                the first event in the outbox can lead to a second event overtaking the first one. Sometimes,
+                that is not good, and complicates understanding what happened.
+            </p><p>
+                When working with a monolithic architecture, understanding problems in the software is often
+                greatly simplfied in comparison to those problems described above for distributed architectures.
+                This is because the process steps are often serialised, especially when considering just a single
+                instance of an "aggregate", like an insurance case, a shopping cart, etc.
+                While not always advantageous, required or even necessary, such serialisation,
+                can greatly simplify the problem at hand. In certain cases, not processing events in the correct order
+                can lead to globally inconsistent data, a.k.a. corrupt data.
+            </p>
+            <p class="bold">
+                This software product acts as middleware, sitting between the transactional outbox
+                and your software which processes the events sent via the outbox. It takes care of serialising
+                the processing of events <i>for any given business key (aka <code>aggregateId</code>)</i>, allowing
+                the processing to be attempted multiple times in cases of failure (using automated retries),
+                effectively holding back other events for the same key, which must be processed later, in order.
+                Note that not all events must be blocked (it is configurable per event).
+                <br>
+                <br>
+                This software product is not solely dependent upon a transactional outbox and can also be used
+                in cases where your software simply needs to consume Kafka records, but with the same advantages
+                described above or in the <a href="javascript:scrollToElement('#features')">feature list</a>.
+            </p>
+            <div class="alert alert-secondary justify" role="alert">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+                Sequential and serial are synonyms; synchronous is closely related and all can infer an order to the execution of such steps:
+                <ul>
+                    <li><a href="https://en.wiktionary.org/wiki/sequential" target="_blank">Sequential</a>: <i>"(programming) Executed as a sequence of instructions, without concurrency or parallelism"</i></li>
+                    <li><a href="https://en.wiktionary.org/wiki/serial#English" target="_blank">Serial</a>: <i>"Having to do with or arranged in a series. Synonym: sequential"</i></li>
+                    <li><a href="https://en.wiktionary.org/wiki/synchronous" target="_blank">Synchronous</a>: <i>"(computing, of communication) Single-threaded; blocking; occurring in the same thread as other computations, thereby preventing those computations from resuming until the communication is complete."</i></li>
+                </ul>
             </div>
 
             <hr id="resources">
@@ -119,9 +143,27 @@
                 Documentation coming soon...
             </p>
 
+            <hr id="features">
+            <h2>Features <a href="#features"><i class="fas fa-link" style="font-size: 50%;" onclick="copyLinkToClipboard('features')"></i></a></h2>
+            <div class="justify">
+                <ul>
+                    <li>Guaranteed Ordering, where required, configured at the event level</li>
+                    <li>Partitioning by individual business keys</li>
+                    <li>Self-healing mechanisms</li>
+                    <li>Automatic retry, with various backoff strategies</li>
+                    <li>Delayed Execution</li>
+                    <li>Mapping Abilities - for compatibility with other outbox implementations</li>
+                    <li>At least once delivery, with consumer-side deduplication</li>
+                    <li>Locking / Reserving mechanisms, where required</li>
+                    <li>Time-to-live (TTL) where required</li>
+                    <li>Support for Quarkus, Spring, plain Java and other languages</li>
+                    <li>Scalability and load-balancing, without overloading service providers</li>
+                </ul>
+            </div>
+
             <hr id="howitworks">
             <h2>How It Works <a href="#howitworks"><i class="fas fa-link" style="font-size: 50%;" onclick="copyLinkToClipboard('howitworks')"></i></a></h2>
-            <div class="alert alert-warning" role="alert">
+            <div class="alert alert-warning justify" role="alert">
                 <i class="fa-solid fa-person-digging"></i>
                 This section needs reworking after the decision to split writing to the outbox and consuming from it!
             </div>
@@ -140,7 +182,7 @@
                 of your application that needs to be bound into the transaction should be included by adding a task to the
                 outbox.
 
-            <div class="alert alert-secondary" role="alert">
+            <div class="alert alert-secondary justify" role="alert">
                 <i class="fa fa-info-circle" aria-hidden="true"></i>
                 Sometimes it is preferred to have mapping logic in the main application
                 rather than in Debezium or Kafka Connect.
@@ -230,7 +272,7 @@
                 <a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank">https://microservices.io/patterns/data/transactional-outbox.html</a>
                 says:
             </p>
-            <div class="alert alert-light" role="alert">
+            <div class="alert alert-light justify" role="alert">
                 <i class="fa-solid fa-quote-left"></i>
                 <i>
                     Messages must be sent to the message broker in the order they were sent by the service.
@@ -238,11 +280,17 @@
                 </i>
             </div>
             <p>
-                So ordering, is very important. The easiest, cheapest and most reliable way to get ordering is to use
+                So ordering, is very important.
+                And we learned that the hard way with incidents reported in production that small amounts of data
+                were globally inconsistent even though all pending outbox tasks were processed. The cases where we
+                found inconsistencies were thanks to us having the data replicated once using an audit trail and
+                once using the source data. Our assumption is that there are other inconsistencies in the landscape
+                which we know nothing about!
+                The easiest, cheapest and most reliable way to get ordering is to use
                 a "message relay" based on CDC (Change Data Capture), just like it is described on microservices.io,
                 namely using a product like <a href="https://debezium.io/documentation/" target="_blank">Debezium</a>.
             </p>
-            <div class="alert alert-primary" role="alert">
+            <div class="alert alert-primary justify" role="alert">
                 <i class="fa-solid fa-info-circle"></i>
                 <b>Design Choice #1</b>
                 TWR is based on CDC so that messages are sent to the message broker in the order they were sent by the service.
@@ -256,7 +304,7 @@
                 solve those problems, while maintaining order, led us to make the next design choice, namely to based TWR
                 on Kafka.
             </p>
-            <div class="alert alert-primary" role="alert">
+            <div class="alert alert-primary justify" role="alert">
                 <i class="fa-solid fa-info-circle"></i>
                 <b>Design Choice #2</b>
                 TWR is based on Kafka, because with <a href="https://kafka.apache.org/documentation/streams/" target="_blank">Kafka Streams</a>
@@ -281,7 +329,7 @@
                 Next, came the following article: <a href="https://softwaremill.com/microservices-101/" target="_blank">https://softwaremill.com/microservices-101/</a>
                 which talks about an inbox and using it for deduplication. Here too, the production and consumption of outbox tasks is separated.
             </p>
-            <div class="alert alert-primary" role="alert">
+            <div class="alert alert-primary justify" role="alert">
                 <i class="fa-solid fa-info-circle"></i>
                 <b>Design Choice #3</b>
                 TWR supports the writing and processing of outbox tasks, but using two different sets of APIs and libraries.
@@ -293,7 +341,7 @@
                 may require the functionality provided by TWR, e.g. retries with (exponential) backoff, administration
                 of "poison pills", blocking of only single aggregate IDs, etc.
             </p>
-            <div class="alert alert-primary" role="alert">
+            <div class="alert alert-primary justify" role="alert">
                 <i class="fa-solid fa-info-circle"></i>
                 <b>Design Choice #4</b>
                 The majority of the features provided by TWR are implemented on the consumer side.
@@ -307,7 +355,7 @@
         <div class="col-10">
             <hr>
             <p class="footer">
-                Copyright © 2023 Ant Kutschera
+                Copyright © 2023 Ant Kutschera, except for linked quotes/concepts, fonts and certain styles, or images where specifically noted.
                 <br>
                 Powered by:
                 <a href="https://abstratium.dev" target="_blank">abstratium.dev

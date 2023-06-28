@@ -15,7 +15,7 @@ observer.observe(el);
 // https://stackoverflow.com/a/6677069/458370
 function scrollToElement(selector) {
     $([document.documentElement, document.body]).animate({
-        scrollTop: ($(selector).length > 0 ? $(selector).offset().top - $("#before-tabs").height() - 20 : 0)
+        scrollTop: ($(selector).length > 0 ? $(selector).offset().top - $("#before-tabs").height() - 40 : 0)
     }, 400);
     window.location.hash = selector;
 }

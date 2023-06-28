@@ -10,6 +10,14 @@ p {
   text-align: justify;
 }
 
+.justify {
+  text-align: justify;
+}
+
+.bold {
+  font-weight: bold;
+}
+
 .footer {
     text-align: center;
     font-size: 14px;
