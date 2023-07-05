@@ -163,73 +163,94 @@
 
             <hr id="howitworks">
             <h2>How It Works <a href="#howitworks"><i class="fas fa-link" style="font-size: 50%;" onclick="copyLinkToClipboard('howitworks')"></i></a></h2>
-            <div class="alert alert-warning justify" role="alert">
-                <i class="fa-solid fa-person-digging"></i>
-                This section needs reworking after the decision to split writing to the outbox and consuming from it!
-            </div>
+
+            <h3>Outbox</h3>
             <p>
-                The following diagram should help to understand the steps involved.
+                Outbox functionality is used to send messages to Kafka, if and only if the transaction used to also
+                write business (functional) data atomically together with the messages, is committed. It is based on an embedded Debezium
+                Engine so that you don't need to run a Kafka Connect cluster in addition to your application, which probably has
+                a number of concurrently running nodes running to ensure high availability and scalability.
             </p>
-
             <p>
-                <img src="twr-simple.svg" class="img-fluid" />
+                <img src="twr-outbox.svg" class="img-fluid" />
             </p>
-
             <p>
-                1) Your application saves data to the database. In the same transaction used for saving its own business data,
-                it also saves any tasks that still need to be done, e.g. making a call to a downstream service using REST,
-                or sending an email, or mapping some state before sending it out as a domain event<sup>*</sup>. Indeed, any resource outside
-                of your application that needs to be bound into the transaction should be included by adding a task to the
-                outbox.
-
-            <div class="alert alert-secondary justify" role="alert">
-                <i class="fa fa-info-circle" aria-hidden="true"></i>
-                Sometimes it is preferred to have mapping logic in the main application
-                rather than in Debezium or Kafka Connect.
-            </div>
-            </p><p>
-
-                2) Debezium (or your favourite CDC equivalent) uses change data capture (CDC) mechanisms like tailing the database
-                transaction log, to consume the changes to the database and create an internal model of them.
-            </p><p>
-                3) Once the transaction is committed, Debezium puts the outbox tasks into a "raw" Kafka topic. Note that if you
-                are simply publishing domain events, you are free to use something like
-                <a href='https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html' target="_blank">Debezium outbox event router</a>.
-                TWR can be useful on the other side, when consuming those events, where ordering is necessary but failures could occur
-                while processing them - see 4b below.
-                It is also possible to fill the raw topic using periodic polling (which you must implement as TWR does not connect
-                to databases), so long as the messages are sorted first. TWR also deduplicates messages from the raw topic.
-            </p><p>
-                4) TWR reads those raw messages and converts them into a standard model that it uses. This involves investigating
-                the current and previous state, as well as understanding if the data was inserted, updated or deleted.
-                As an alternative, TWR can be used to consume externally produced events and map them into it's standard model
-                (think "inbox" rather than outbox), so that if your application fails to execute a task the first time it consumes
-                such a message, it will be triggered again, to attempt it later, allowing messages for other <code>aggregateId</code>s to
-                continue to be processed, while only blocking other messages for the same <code>aggregateId</code>, so that order is maintained,
-                if that is required. Another application of TWR in this sense is when joining messages of several topics, but when a different
-                part of the final model has not yet arrived, and you want to wait for it, so that e.g. you can use a foreign key constraint in your
-                database model.
-            </p><p>
-                5) TWR publishes the tasks to an output topic. It ensures that where you require an ordering guarantee, tasks
-                are only published if all preceding ones have been successfully completed. It can also delay tasks, if
-                you require that. It can remove tasks if a time-to-live which is set by you has been exceeded. Importantly,
-                it partitions by <code>aggregateId</code>, so other data having other keys is not blocked should a certain message
-                fail and need to be retried (as is the norm when using plain Kafka). Thanks to that, tasks can be retried with
-                an exponential backoff, or halted entirely until an administrator intervenes, without interupting the processing
-                of other business aggregates. All of these mechanisms lead to a self-healing system, but also one which is simpler
-                to understand, because while it is asynchronous, concurrent and scalable, you can limit the concurrency for a
-                single aggregate. Note that while normally we strive for concurrency in order to scale, we want to reduce the
-                chaos that that can bring with it when business processes running on single aggregates run in parallel.
-            </p><p>
-                6) Your application consumes the messages with the help of a TWR library, and executes the business logic
-                associated aggregate type using the aggregate as the input. If the execution is successful, the outbox table is
-                updated and the completed timestamp is set, which signals TWR to remove that task from its model (via flows 1-4),
-                and output the next task for that <code>aggregateId</code> (via flows 5 & 6). If the execution fails, you can set the
-                time to wait until, on the task in the outbox, which TWR uses to wait for, allowing for exponential backoff,
-                which can be useful in allowing downstream services to recover if they are struggling under load.
+                <ul class="justify">
+                    <li>(1) Your application uses the TWR API to publish messages in the same database transaction as it uses an ORM 
+                        or similar library to write business data to the database.
+                    </li>
+                    <li>(2) When that transaction is committed, Debezium is triggered to process the data from the outbox table.</li>
+                    <li>(3) You can supply optional 
+                        Java mapping logic to TWR which is convert the raw data from the outbox table into a first class Kafka record,
+                        or you can let TWR use it's standard mapping logic to create JSON or Avro based records. The published record
+                        can be designed to be consumed by other applications, or by the same application.
+                    </li>
+                </ul>
             </p>
 
 
+            <h3>Inbox</h3>
+            <p>
+                Inbox functionality is used to receive messages from Kafka, but provides you with some standard features:
+                <ul class="justify">
+                    <li>Deduplication - because default consumption from Kafka provides at-least-once semantics</li>
+                    <li>Retry & Backoff - letting you throw an exception if you were unable to consume the record successfully, and
+                        try to consume it again at a later time, e.g. using an exponential backoff strategy.
+                    </li>
+                    <li>Guaranteed ordering at the level of the Kafka key, rather than the default of just the Kafka partition</li>
+                </ul>
+            </p>
+            <p>
+                <img src="twr-inbox.svg" class="img-fluid" />
+            </p>
+            <p>
+                <ul class="justify">
+                    <li>(1) Any topic of interest, perhaps one written to using the outbox, is subscribed and polled. 
+                    </li>
+                    <li>(2) Records are not
+                        initially processed by your application, rather TWR takes them and uses a table in your applications database
+                        to check for duplicates. The table is also used for sending signals back to TWR in the correct order, any time
+                        that your application attempts to process such a record.
+                    </li>
+                    <li>(3) An embedded Debezium is used to check the signals which TWR writes to the database.</li>
+                    <li>(4 &amp; 5) This results in control records being written to some internal topics which are used to a) ensure that 
+                        records are queued by their key, b) block them in case of failure to ensure that they are processed in the correct order,
+                        and delay them according to the backoff strategy you select, until they should be retried.
+                    </li>
+                    <li>(6) TWR sends the record to your application code, which can tell TWR if it was able to successfully process the record, or if it
+                        failed, in which case TWR will first wait, and then eventually call your application again.
+                    </li>
+                    <li>(7) When successfully processing a record, you will typically write business data in the same transaction as TWR will update the control
+                        data used by it internally. This is similar to the outbox functionality shown previously.
+                    </li>
+                </ul>
+            </p>
+
+            <h3>Hybrid</h3>
+            <p>
+                In hybrid mode, an <code>Oibox</code>&trade; table is used (an outbox, but also an inbox), so that the same component which writes
+                to the outbox is the consumer of the outbox. This is useful if you are orchestrating a number of resources that cannot be bound
+                into a single transaction, e.g. if you are writing to a number of REST services, sending an email, or similar.
+            </p>
+            <p>
+                <img src="twr-hybrid.svg" class="img-fluid" />
+            </p>
+            <p>
+                <ul class="justify">
+                    <li>(1) Your application writes to the Oibox&trade; to say that something still needs to be done, and you only want it
+                        to be done if the transaction is committed. You might also write business data at the same time.
+                    </li>
+                    <li>(2) An embedded Debezium is used to receive the Oibox&trade; contents</li>
+                    <li>(3) TWR sends the contents to an internal topic, in which the order of the contents is guaranteed to be the insert order</li>
+                    <li>(4 &amp; 5) TWR processes the contents just like it does when having just an inbox</li>
+                    <li>(6) TWR triggers your application or process the contents, which can response positively or negatively. In negative cases
+                        TWR will retry in the future and block any further records having the same key, so that the order is maintained.
+                    </li>
+                    <li>(7) In the positive case where you application suceeds in processing the record, TWR will send any further records that
+                        have been waiting on that predecessing record.
+                    </li>
+                </ul>
+            </p>
 
             <hr id="requirements">
             <h2>Requirements <a href="#requirements"><i class="fas fa-link" style="font-size: 50%;" onclick="copyLinkToClipboard('requirements')"></i></a></h2>

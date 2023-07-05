@@ -25,3 +25,7 @@ https://fontawesome.com/docs/web/setup/host-yourself/webfonts
 `all.min.css` installed in root, and it searches for fonts under `webfonts` so added
 woff2 files there.
 
+# TODO
+
+- use https://www.mkdocs.org/?
+- use https://revealjs.com/?
