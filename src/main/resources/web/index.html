@@ -21,7 +21,7 @@
         <div class="col-10 col-lg-8 col-xl-6">
             <img src="logo-transparent.png" alt="TWR - The Waiting room">
             <h1>The Waiting Room</h1>
-            <small>Copyright © 2023 Ant Kutschera - see bottom of page for details</small>
+            <small>Copyright © 2023 Dr Ant Kutschera - see bottom of page for details</small>
 
             <p>
             A software product designed to enhance the consumption of Apache Kafka topics,
@@ -73,7 +73,7 @@
                 A pattern often applied to solve global data consistency requirements, is the
                 <a href='https://microservices.io/patterns/data/transactional-outbox.html' target="_blank">transactional outbox pattern</a>
                 where instead of sending events outside of the transaction used to commit data in a source component,
-                an outbox table is committed to, within the same
+                an outbox table is written to, within the same
                 <a href="https://en.wikipedia.org/wiki/ACID" target="_blank">ACID transaction</a>.
                 The contents of that outbox table are processed asynchronously, resulting in
                 <a href="https://en.wikipedia.org/wiki/Eventual_consistency" target="_blank">eventual consistency</a>.
@@ -109,15 +109,21 @@
                 can lead to globally inconsistent data, a.k.a. corrupt data.
             </p>
             <p class="bold">
-                This software product acts as middleware, sitting between the transactional outbox
-                and your software which processes the events sent via the outbox. It takes care of serialising
-                the processing of events <i>for any given business key (aka <code>aggregateId</code>)</i>, allowing
-                the processing to be attempted multiple times in cases of failure (using automated retries),
-                effectively holding back other events for the same key, which must be processed later, in order.
+                This software library acts as middleware sitting between your application and Kafka, 
+                providing a transactional outbox, but also an inbox
+                (a so called <code>Oibox</code>&trade;). It takes care of serialising
+                the processing of events <i>for any given business key</i>, allowing
+                the processing to be attempted multiple times in cases of failure (using automated retries and a configurable backoff strategy),
+                effectively making other events for the same key wait, so that they are processed later, in the correct order.
                 Note that not all events must be blocked (it is configurable per event).
                 <br>
                 <br>
-                This software product is not solely dependent upon a transactional outbox and can also be used
+                While this library depends on Debezium to help it with ordering data, 
+                it does not require the deployment of other products like Apache Kafka Connect, since it provides all the 
+                necessary infrastructure to run in clustered mode.
+                <br>
+                <br>
+                This software library is not solely dependent upon a transactional outbox and can also be used
                 in cases where your software simply needs to consume Kafka records, but with the same advantages
                 described above or in the <a href="javascript:scrollToElement('#features')">feature list</a>.
             </p>
@@ -243,12 +249,11 @@
                     <li>(2) An embedded Debezium is used to receive the Oibox&trade; contents</li>
                     <li>(3) TWR sends the contents to an internal topic, in which the order of the contents is guaranteed to be the insert order</li>
                     <li>(4 &amp; 5) TWR processes the contents just like it does when having just an inbox</li>
-                    <li>(6) TWR triggers your application or process the contents, which can response positively or negatively. In negative cases
-                        TWR will retry in the future and block any further records having the same key, so that the order is maintained.
-                    </li>
-                    <li>(7) In the positive case where you application suceeds in processing the record, TWR will send any further records that
-                        have been waiting on that predecessing record.
-                    </li>
+                    <li>(6 &amp; 7) TWR triggers your application to process the contents and for example call a REST based service. Your application
+                        can response positively or negatively. In negative cases TWR will retry in the future and block any further records having
+                        the same key, so that the order is maintained.</li>
+                    <li>(8) In the positive case where your application suceeds in processing the record, TWR will send any further records that
+                        have been waiting on that predecessing record.</li>
                 </ul>
             </p>
 
@@ -376,7 +381,7 @@
         <div class="col-10">
             <hr>
             <p class="footer">
-                Copyright © 2023 Ant Kutschera, except for linked quotes/concepts, fonts and certain styles, or images where specifically noted.
+                Copyright © 2023 Dr Ant Kutschera, except for linked quotes/concepts, fonts and certain styles, or images where specifically noted.
                 <br>
                 Powered by:
                 <a href="https://abstratium.dev" target="_blank">abstratium.dev
